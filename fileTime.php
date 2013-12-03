@@ -57,6 +57,7 @@ function GetFiles($dirName) {
 
 function GetFilesRecursive($dirName) {
     $root = scandir($dirName);
+    $result = array();
     foreach ($root as $value) {
         if ($value === '.' || $value === '..') {
             continue;
@@ -117,10 +118,10 @@ function FileReorder($filename, $basedir, $extradir = null) {
 function GetFileCreateTime($filename) {
     $FPtime = filectime($filename);
     $FPtimeRe = date('d-m-Y H:m:s', $FPtime);
-   // printf(' FileCreatedTime:' . $FPtimeRe);
-    if ($FPtime == 0) {
-        $FPtime = (time() + 1000000);
-    }
+    $FMtime = filemtime($filename);
+    // printf(' FileCreatedTime:' . $FPtimeRe);
+    if($FMtime<$FPtime){$FPtime=$FMtime;}
+    if ($FPtime == 0) {$FPtime = (time() + 10000000);}
     // $exiffilename = str_replace(" ","%20",$filename);
     $exifType = exif_imagetype($filename);
     if ($exifType !== '0') {
@@ -181,7 +182,6 @@ if ($recursive == '1') {
 } else {
     $files = GetFiles($formpost['directory']);
 }
-?><html><body> <?php
         $totalfiles = 0;
         $processcount = 0;
         $timenochange = 0;
@@ -192,10 +192,10 @@ if ($recursive == '1') {
         foreach ($files as $file) {
             $totalfiles++;
             if (file_exists($file)) {
-                if (array_key_exists(pathinfo($file, PATHINFO_EXTENSION), $mediatypes)) {
-                    $filemediatype = $mediatypes[pathinfo($file, PATHINFO_EXTENSION)];
+                if (array_key_exists(strtolower(pathinfo($file, PATHINFO_EXTENSION)), $mediatypes)) {
+                    $filemediatype = $mediatypes[strtolower(pathinfo($file, PATHINFO_EXTENSION))];
                     $filetime = GetFileCreateTime($file);
-                    printf(' Filename: ' . $file . ' :');
+                   // printf(' Filename: ' . $file . ' :');
                     if ($filetime !== False) {
                         $newTime = date('d-m-Y H:m:s', $filetime);
                         printf($newTime);
@@ -229,8 +229,51 @@ if ($recursive == '1') {
                 $filnoexistcount++;
             }
         }
-        ?><div id="result"><p>
+?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en">
+    <head>
+        <title>Form for Media Optimizer</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <!-- Bootstrap -->
+    <link href="css/bootstrap.min.css" rel="stylesheet"/>
+        <link href="css/custom.css" rel="stylesheet"/>
+
+
+    <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
+    <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+    <!--[if lt IE 9]>
+      <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+      <script src="https://oss.maxcdn.com/libs/respond.js/1.3.0/respond.min.js"></script>
+    <![endif]-->
+    <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" /><style type="text/css">
+<!--
+body {
+	background-color: #06C;
+}
+#main 
+{
+	margin: 10px;
+	background-color:#FFFFFF;
+	border-radius: 5px ;
+  -webkit-border-radius: 5px;
+     -moz-border-radius: 5px;
+          border-radius: 5px;
+}
+-->
+</style>
+</head>
+    <body>
+    <div class="container ">
+    <div id="main" class="col-lg-offset-3 col-lg-6">
+    <div id="result"><p>
 <?php echo $totalfiles . ' in total Processed. </br>' . $filnoexistcount . ' files didnt exist.<br/>' . $notmediacount . ' files didnt not match correct media types.<br/>' . $filenotreordered . ' files were not moved into new structure <br/>'
  . $timenochange . ' files were did not get retagged.<br/>' . $processcount . ' files were retagged.<br/>' . $filereordercount . ' Files wer moved into new directory structure.<br/>';
 ?>
-            </p></div></body></html>
+            </p></div>
+        </div>
+        </div>
+        <!-- jQuery (necessary for Bootstrap's JavaScript plugins) -->
+    <script src="https://code.jquery.com/jquery.js"></script>
+    <!-- Include all compiled plugins (below), or include individual files as needed -->
+    <script src="js/bootstrap.min.js"></script>
+    </body></html>
