@@ -1,0 +1,48 @@
+{
+  "vars": {
+    "@brand-primary": "#AEAFF2",
+    "@brand-success": "#66B37A",
+    "@brand-warning": "#F2674B",
+    "@brand-danger": "#ED090D",
+    "@pre-bg": "#e6e6e6"
+  },
+  "css": [
+    "grid.less",
+    "tables.less",
+    "forms.less",
+    "buttons.less",
+    "glyphicons.less",
+    "button-groups.less",
+    "input-groups.less",
+    "navs.less",
+    "navbar.less",
+    "breadcrumbs.less",
+    "pagination.less",
+    "pager.less",
+    "labels.less",
+    "badges.less",
+    "jumbotron.less",
+    "thumbnails.less",
+    "alerts.less",
+    "progress-bars.less",
+    "media.less",
+    "list-group.less",
+    "panels.less",
+    "wells.less",
+    "close.less",
+    "tooltip.less",
+    "popovers.less",
+    "utilities.less",
+    "responsive-utilities.less",
+    "component-animations.less"
+  ],
+  "js": [
+    "button.js",
+    "tooltip.js",
+    "popover.js",
+    "affix.js",
+    "collapse.js",
+    "scrollspy.js",
+    "transition.js"
+  ]
+}

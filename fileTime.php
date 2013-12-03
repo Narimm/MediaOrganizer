@@ -1,11 +1,30 @@
 <?php
-
-/* 
+/*
  * To change this license header, choose License Headers in Project Properties.
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
 date_default_timezone_set('AUSTRALIA/Brisbane');
+$mediatypes = array(
+    'jpg' => 'image',
+    'jp2' => 'image',
+    'jpx' => 'image',
+    'jpeg' => 'image',
+    'png' => 'image',
+    'psd' => 'image',
+    'bmp' => 'image',
+    'tiff' => 'image',
+    'tif' => 'image',
+    'swf' => 'video',
+    'gif' => 'image',
+    'mp4' => 'video',
+    'm2ts' => 'video',
+    'mov' => 'video',
+    'mod' => 'video',
+    'avi' => 'video',
+    'mpg' => 'video',
+    '3gp' => 'video'
+);
 
 function NmCDFile($filename, $newDateTime) {
     $cmd = "C:\\nircmd\\nircmdc.exe setfilefoldertime \"$filename\" \"$newDateTime\"";
@@ -53,7 +72,7 @@ function GetFilesRecursive($dirName) {
     return $result;
 }
 
-function FileReorder($filename, $basedir) {
+function FileReorder($filename, $basedir, $extradir = null) {
     $filebase = basename($filename);
     $date = getdate(filectime($filename));
     if ($date['mon'] < 10) {
@@ -62,30 +81,30 @@ function FileReorder($filename, $basedir) {
         $datem = $date['mon'];
     }
     $datey = $date['year'];
-    $newPath = "$basedir\\$datey\\$datem";
+    if($extradir != null){$newPath = "$basedir\\$extradir\\$datey\\$datem";}else{$newPath = "$basedir\\$datey\\$datem";}
     if (!is_dir($newPath)) {
         mkdir($newPath, '0777', TRUE);
     }
     $newFileName = "$newPath\\$filebase";
-    if (!$newFileName == $filename) {
+    if ($newFileName != $filename) {
         if (file_exists($filename)) {
             //$filhandle = fopen($filename, 'r');
             //fclose($filhandle);
             //sleep(1);
             $renamed = rename($filename, $newFileName);
             if ($renamed) {
-                printf('File Renamed: old-' . $filename . ' new-' . $newFileName . ' ');
+               // printf('File Renamed: old-' . $filename . ' new-' . $newFileName . ' ');
             } else {
-                printf('File Rename failed');
+         //       printf('File Rename failed');
             }
 
             return $renamed;
         } else {
-            printf('FILE DOESNT EXIST CANT RENAME');
+          //  printf('FILE DOESNT EXIST CANT RENAME');
             return FALSE;
         }
     } else {
-        printf('Files already ordered not renamed');
+       // printf('Files already ordered not renamed');
         return false;
     }
 }
@@ -98,7 +117,7 @@ function FileReorder($filename, $basedir) {
 function GetFileCreateTime($filename) {
     $FPtime = filectime($filename);
     $FPtimeRe = date('d-m-Y H:m:s', $FPtime);
-    printf(' FileCreatedTime:' . $FPtimeRe);
+   // printf(' FileCreatedTime:' . $FPtimeRe);
     if ($FPtime == 0) {
         $FPtime = (time() + 1000000);
     }
@@ -112,7 +131,7 @@ function GetFileCreateTime($filename) {
     if ($ExifData !== FALSE) {
         $ExifFT = $ExifData['DateTimeOriginal'];
         $ExifFTRe = date('d-m-Y H:m:s', $ExifFT);
-        printf(' ExifFileCreatedTime:' . $ExifFTRe);
+       // printf(' ExifFileCreatedTime:' . $ExifFTRe);
         $fileTime = $ExifFT;
     } else {
         $info = pathinfo($filename);
@@ -126,10 +145,13 @@ function GetFileCreateTime($filename) {
             $fSec = substr($fileBase, 12, 2);
             $FNDateTime = new DateTime($fYear . '-' . $fMonth . '-' . $fDay . ' ' . $fHour . ':' . $fMin . ':' . $fSec);
             $FNDateTimeRe = date('d-m-Y H:i:s', $FNDateTime->getTimestamp());
-            printf(' FileNameExtractedTime: ' . $FNDateTimeRe);
+          //  printf(' FileNameExtractedTime: ' . $FNDateTimeRe);
         } elseif (strlen($info['filename']) == 19) {
-            //here we assime the file name is in the format YYYY/mm/dd HH:ii:ss.extension
-            $FNDateTime = new DateTime(basename($fileBase, '.' . $info['extension']));
+            //check the pattern fits
+            if (is_numeric($info['filename'])) {
+                //here we assime the file name is in the format YYYY/mm/dd HH:ii:ss.extension
+                $FNDateTime = new DateTime(basename($fileBase, '.' . $info['extension']));
+            }
         }
         if (isset($FNDateTime)) {
             $fileTime = min($FPtime, $FNDateTime->getTimestamp());
@@ -147,6 +169,11 @@ function GetFileCreateTime($filename) {
 foreach ($_POST as $key => $value) {
     $formpost[$key] = $value;
 }
+if (array_key_exists('nonmediamove', $formpost)) {
+    $reordernonmedia = TRUE;
+} else {
+    $reordernonmedia = FALSE;
+}
 $startDir = $formpost['directory'];
 $recursive = $formpost['recursive'];
 if ($recursive == '1') {
@@ -155,21 +182,55 @@ if ($recursive == '1') {
     $files = GetFiles($formpost['directory']);
 }
 ?><html><body> <?php
-foreach ($files as $file) {
-    if (file_exists($file)) {
-        $filetime = GetFileCreateTime($file);
-        printf(' Filename: ' . $file . ' :');
-        if ($filetime !== False) {
-            $newTime = date('d-m-Y H:m:s', $filetime);
-            printf($newTime);
-            $processed = NmCDFile($file, $newTime);
-            printf('Processed: ' . $processed . '<br/><hr/>');
-        } else {
-            printf('File Time unchanged <br/><hr/>');
+        $totalfiles = 0;
+        $processcount = 0;
+        $timenochange = 0;
+        $filereordercount = 0;
+        $filenotreordered = 0;
+        $notmediacount = 0;
+        $filnoexistcount = 0;
+        foreach ($files as $file) {
+            $totalfiles++;
+            if (file_exists($file)) {
+                if (array_key_exists(pathinfo($file, PATHINFO_EXTENSION), $mediatypes)) {
+                    $filemediatype = $mediatypes[pathinfo($file, PATHINFO_EXTENSION)];
+                    $filetime = GetFileCreateTime($file);
+                    printf(' Filename: ' . $file . ' :');
+                    if ($filetime !== False) {
+                        $newTime = date('d-m-Y H:m:s', $filetime);
+                        printf($newTime);
+                        $processed = NmCDFile($file, $newTime);
+                      //  printf('Processed: ' . $processed . '<br/><hr/>');
+                        $processcount++;
+                    } else {
+                     //   printf('File Time unchanged <br/><hr/>');
+                        $timenochange++;
+                    }
+                    $reordered = FileReorder($file, $startDir,$filemediatype);
+                    if ($reordered) {
+                        $filereordercount ++;
+                    } else {
+                        $filenotreordered++;
+                    }
+                } else {
+                    if ($reordernonmedia) {
+                        $reordered = FileReorder($file, $startDir,'NonMedia');
+                        if ($reordered) {
+                            $filereordercount ++;
+                        } else {
+                            $filenotreordered++;
+                        }
+                    }
+                  //  printf($file . ' - Was not found in media types');
+                    $notmediacount++;
+                }
+            } else {
+               // printf($file . ' - File Doesnt exists <br/><hr/>');
+                $filnoexistcount++;
+            }
         }
-        $reodered = FileReorder($file, $startDir);
-    } else {
-        printf($file . ' - File Doesnt exists <br/><hr/>');
-    }
-}
-?></body></html>
+        ?><div id="result"><p>
+<?php echo $totalfiles . ' in total Processed. </br>' . $filnoexistcount . ' files didnt exist.<br/>' . $notmediacount . ' files didnt not match correct media types.<br/>' . $filenotreordered . ' files were not moved into new structure <br/>'
+ . $timenochange . ' files were did not get retagged.<br/>' . $processcount . ' files were retagged.<br/>' . $filereordercount . ' Files wer moved into new directory structure.<br/>';
+?>
+            </p></div></body></html>
