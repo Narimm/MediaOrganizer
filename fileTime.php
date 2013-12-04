@@ -73,9 +73,12 @@ function GetFilesRecursive($dirName) {
     return $result;
 }
 
-function FileReorder($filename, $basedir, $extradir = null) {
+function FileReorder($filename, $basedir, $extradir = null,$filetime = false) {
     $filebase = basename($filename);
+if($filetime == false){
     $date = getdate(filectime($filename));
+   }else{
+       $date = getdate($filetime);}
     if ($date['mon'] < 10) {
         $datem = '0' . $date['mon'];
     } else {
@@ -112,6 +115,91 @@ function FileReorder($filename, $basedir, $extradir = null) {
 
 /**
  * 
+ * @param type $filename
+ * @return mixed - Will return the Exif - DateTimeOriginal as Unix timestamp
+ */
+function GetExifOriginalTime($filename){
+    $exifType = exif_imagetype($filename);
+    if ($exifType !== FALSE) {
+        $ExifData = @exif_read_data($filename); //supress's warning for files that exif funcs can interpret but dont actually have exif data
+    } else {
+        Goto ExifNoValue;
+    }
+    if ($ExifData !== FALSE) {
+        if(array_key_exists('DateTimeOriginal',$ExifData)){
+        $ExifFTS = $ExifData['DateTimeOriginal'];
+        $ExifArray = explode(' ', $ExifFTS);
+        $ExifDateA = explode(':',$ExifArray[0]);
+        $ExifTimeA = explode(':', $ExifArray[1]);   
+        $ExifFTU = mktime($ExifTimeA[0], $ExifTimeA[1], $ExifTimeA[2], $ExifDateA[1], $ExifDateA[2], $ExifDateA[0]);
+          goto ExifGood;
+        }elseif(array_key_exists('DateTime',$ExifData)){
+            $ExifFTS = $ExifData['DateTime'];
+        $ExifArray = explode(' ', $ExifFTS);
+        $ExifDateA = explode(':',$ExifArray[0]);
+        $ExifTimeA = explode(':', $ExifArray[1]);   
+        $ExifFTU = mktime($ExifTimeA[0], $ExifTimeA[1], $ExifTimeA[2], $ExifDateA[1], $ExifDateA[2], $ExifDateA[0]);
+          goto ExifGood;
+        }elseif(array_key_exists('FileDateTime',$ExifData)){
+            $ExifFTU = $ExifData['FileDateTime'];
+            goto ExifGood;
+        }else{
+            Goto ExifNoValue;
+        }
+    }else{
+        Goto ExifNoValue;}
+   ExifGood:
+        return $ExifFTU;
+   ExifNoValue:
+        return FALSE;
+
+        
+}
+/**
+ * 
+ * @param type $filename
+ * @return mixed Boolean False if couldnt evaluate and UNIX timestamp if it could.
+ */
+function GetTimefromFilename($filename){
+        $info = pathinfo($filename);
+        $fileBase = $info['filename'];
+        if (strlen($fileBase) == 14) {
+            $fYear = substr($fileBase, 0, 4);
+            $fMonth = substr($fileBase, 4, 2);
+            $fDay = substr($fileBase, 6, 2);
+            $fHour = substr($fileBase, 8, 2);
+            $fMin = substr($fileBase, 10, 2);
+            $fSec = substr($fileBase, 12, 2);
+            $FNDateTime = new DateTime($fYear . '-' . $fMonth . '-' . $fDay . ' ' . $fHour . ':' . $fMin . ':' . $fSec);
+            return $FNDateTime->getTimestamp();
+           // $FNDateTimeRe = date('d-m-Y H:i:s', $FNDateTime->getTimestamp());
+          //  printf(' FileNameExtractedTime: ' . $FNDateTimeRe);
+        }
+        if(strlen($fileBase) == 19) {
+            //check the pattern fits
+        $Fnarray = explode(' ', $fileBase);
+        //check we got 2 halves
+        if(count($Fnarray)!=2){goto Extractfail;}
+        $FnDateA = explode('-',$Fnarray[0]);
+        $FnTimeA = explode('.', $Fnarray[1]);   
+        //check we exploded to  3 values for each array
+        if(count($FnDateA)!=3){goto Extractfail;}
+        if(count($FnTimeA)!=3){
+            unset($FnTimeA);
+            $FnTimeA = explode(':', $Fnarray[1]);
+            if(count($FnTimeA)!=3){goto Extractfail;}
+        }
+        foreach ($FnTimeA as $value){if(!is_numeric($value)){goto Extractfail;}}
+        $FNDateTime = new DateTime($FnDateA[0] . '-' . $FnDateA[1] . '-' . $FnDateA[2] . ' ' . $FnTimeA[0] . ':' . $FnTimeA[1] . ':' . $FnTimeA[2]);  
+        return $FNDateTime->getTimestamp();
+        }
+        Extractfail:
+            return FALSE;
+       
+}
+
+/**
+ * 
  * @param string $filename File name full path
  * @return datetime Date Time in unix format
  */
@@ -120,51 +208,20 @@ function GetFileCreateTime($filename) {
     $FPtimeRe = date('d-m-Y H:m:s', $FPtime);
     $FMtime = filemtime($filename);
     // printf(' FileCreatedTime:' . $FPtimeRe);
-    if($FMtime<$FPtime){$FPtime=$FMtime;}
-    if ($FPtime == 0) {$FPtime = (time() + 10000000);}
+    if ($FPtime <= 100) {$FPtime = (time() + 10000000);}
     // $exiffilename = str_replace(" ","%20",$filename);
-    $exifType = exif_imagetype($filename);
-    if ($exifType !== '0') {
-        $ExifData = @exif_read_data($filename, 'FILE'); //supress's warning for files that exif funcs can interpret but dont actually have exif data
+    $ExifFTU = GetExifOriginalTime($filename);
+    
+    if($ExifFTU !== false){$fileTime = $ExifFTU;       
     } else {
-        $ExifData = FALSE;
-    }
-    if ($ExifData !== FALSE) {
-        $ExifFT = $ExifData['DateTimeOriginal'];
-        $ExifFTRe = date('d-m-Y H:m:s', $ExifFT);
-       // printf(' ExifFileCreatedTime:' . $ExifFTRe);
-        $fileTime = $ExifFT;
-    } else {
-        $info = pathinfo($filename);
-        $fileBase = $info['filename'];
-        if (strlen($info['filename']) == 14) {
-            $fYear = substr($fileBase, 0, 4);
-            $fMonth = substr($fileBase, 4, 2);
-            $fDay = substr($fileBase, 6, 2);
-            $fHour = substr($fileBase, 8, 2);
-            $fMin = substr($fileBase, 10, 2);
-            $fSec = substr($fileBase, 12, 2);
-            $FNDateTime = new DateTime($fYear . '-' . $fMonth . '-' . $fDay . ' ' . $fHour . ':' . $fMin . ':' . $fSec);
-            $FNDateTimeRe = date('d-m-Y H:i:s', $FNDateTime->getTimestamp());
-          //  printf(' FileNameExtractedTime: ' . $FNDateTimeRe);
-        } elseif (strlen($info['filename']) == 19) {
-            //check the pattern fits
-            if (is_numeric($info['filename'])) {
-                //here we assime the file name is in the format YYYY/mm/dd HH:ii:ss.extension
-                $FNDateTime = new DateTime(basename($fileBase, '.' . $info['extension']));
-            }
-        }
-        if (isset($FNDateTime)) {
-            $fileTime = min($FPtime, $FNDateTime->getTimestamp());
+        $FNDateTime = GetTimefromFilename($filename);
+        if ($FNDateTime !==FALSE) {
+            $fileTime = min($FPtime, $FNDateTime);
         } else {
-            $fileTime = $FPtime;
+            $fileTime = min($FMtime,$FPtime);
         }
     }
-    if ($fileTime <> $FPtime) {
-        return $fileTime;
-    } else {
-        return FALSE;
-    }
+    if ($fileTime != $FPtime) {return $fileTime;} else {return FALSE;}
 }
 
 foreach ($_POST as $key => $value) {
@@ -198,7 +255,7 @@ if ($recursive == '1') {
                    // printf(' Filename: ' . $file . ' :');
                     if ($filetime !== False) {
                         $newTime = date('d-m-Y H:m:s', $filetime);
-                        printf($newTime);
+                       // printf($newTime);
                         $processed = NmCDFile($file, $newTime);
                       //  printf('Processed: ' . $processed . '<br/><hr/>');
                         $processcount++;
@@ -206,7 +263,7 @@ if ($recursive == '1') {
                      //   printf('File Time unchanged <br/><hr/>');
                         $timenochange++;
                     }
-                    $reordered = FileReorder($file, $startDir,$filemediatype);
+                    $reordered = FileReorder($file, $startDir,$filemediatype,$filetime);
                     if ($reordered) {
                         $filereordercount ++;
                     } else {
